@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NATR Volatility Scanner | All Futures</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0c1117;
+            --bg-card: #151c25;
+            --fg: #e4e8eb;
+            --muted: #5e6d7a;
+            --accent: #f0b90b;
+            --accent-dim: rgba(240, 185, 11, 0.12);
+            --border: rgba(255,255,255,0.06);
+            --green: #0ecb81;
+            --red: #f6465d;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+        }
+        
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        
+        .header h1 span { color: var(--accent); }
+        
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(240,185,11,0.3); }
+        .btn:active { transform: translateY(0); }
+        .btn.loading { opacity: 0.7; pointer-events: none; }
+        
+        .btn svg { width: 16px; height: 16px; transition: transform 0.4s; }
+        .btn.loading svg { animation: spin 0.8s linear infinite; }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--muted);
+        }
+        
+        .status.active .status-dot {
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+        
+        .auto-refresh.active {
+            border-color: rgba(16, 203, 129, 0.3);
+            color: var(--green);
+        }
+        
+        .refresh-timer {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: center;
+        }
+        
+        .auto-refresh.active .refresh-timer {
+            color: var(--green);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--muted);
+            transition: all 0.2s;
+        }
+        
+        .tab:hover { color: var(--fg); background: rgba(255,255,255,0.03); }
+        
+        .tab.active {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border-color: rgba(240,185,11,0.2);
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .stats-bar span { color: var(--muted); }
+        .stats-bar strong { color: var(--fg); }
+        .stats-bar .mono { color: var(--accent); }
+
+        .table-wrap {
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        
+        table { width: 100%; border-collapse: collapse; }
+        
+        thead th {
+            text-align: left;
+            padding: 14px 18px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        thead th:last-child { text-align: right; }
+
+        tbody tr {
+            transition: background 0.15s;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        tbody tr:last-child { border-bottom: none; }
+        
+        tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+        tbody tr.border-after {
+            border-bottom: 2px solid rgba(255,255,255,0.12) !important;
+        }
+
+        tbody td {
+            padding: 16px 18px;
+            vertical-align: middle;
+        }
+        
+        tbody td:last-child { text-align: right; }
+
+        .rank {
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        
+        .rank-1 { background: linear-gradient(135deg, #ffd700, #ffaa00); color: #000; }
+        .rank-2 { background: linear-gradient(135deg, #c0c0c0, #999); color: #000; }
+        .rank-3 { background: linear-gradient(135deg, #cd7f32, #a0522d); color: #fff; }
+        .rank-n { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+        .ticker-cell {
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .ticker-name {
+            font-weight: 600;
+            font-size: 15px;
+            letter-spacing: -0.01em;
+            transition: all 0.2s;
+            display: inline-block;
+        }
+        
+        .ticker-cell:hover .ticker-name {
+            color: var(--accent);
+            transform: translateX(2px);
+        }
+        
+        .ticker-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
+            transition: all 0.2s;
+        }
+        
+        .ticker-cell:hover .ticker-sub {
+            color: var(--green);
+        }
+        
+        .copy-icon {
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+            color: var(--green);
+            pointer-events: none;
+        }
+        
+        .ticker-cell:hover .copy-icon {
+            opacity: 0.6;
+        }
+        
+        .copied .ticker-name {
+            color: var(--green) !important;
+        }
+        
+        .copied .copy-icon {
+            opacity: 1 !important;
+        }
+
+        .natr {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+        
+        .natr-hi { color: var(--red); }
+        .natr-mid { color: var(--accent); }
+        .natr-lo { color: var(--muted); }
+
+        .skel-row {
+            display: flex;
+            align-items: center;
+            padding: 16px 18px;
+            gap: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .skel-row:last-child { border-bottom: none; }
+        
+        .skel {
+            background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+            background-size: 200% 100%;
+            animation: skel 1.5s infinite;
+            border-radius: 6px;
+        }
+        
+        @keyframes skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .empty-state {
+            padding: 60px 20px;
+            text-align: center;
+            color: var(--muted);
+        }
+        
+        .empty-state p { margin-top: 12px; font-size: 14px; }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-card);
+            border: 1px solid var(--green);
+            color: var(--green);
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+        
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 12px; }
+            .header h1 { font-size: 1.2rem; }
+            .natr { font-size: 1.35rem; }
+            .ticker-name { font-size: 14px; }
+            td, th { padding: 12px 14px; }
+            .controls { flex-wrap: wrap; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="header">
+        <h1><span>NATR</span> Scanner</h1>
+        <div class="controls">
+            <div class="status" id="statusBadge">
+                <span class="status-dot"></span>
+                <span id="statusText">Ожидание</span>
+            </div>
+            <div class="auto-refresh" id="autoRefresh" title="Автообновление каждую минуту">
+                <svg style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span class="refresh-timer" id="refreshTimer">--</span>с
+            </div>
+            <button class="btn" id="scanBtn" onclick="startScan()">
+                <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Сканировать
+            </button>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" data-mode="5_14" onclick="switchMode('5_14')">NATR 5/14 (5m x 14)</button>
+        <button class="tab" data-mode="1_30" onclick="switchMode('1_30')">NATR 1/30 (1m x 30)</button>
+    </div>
+
+    <div class="stats-bar" id="statsBar" style="display:none;">
+        <div>Всего контрактов: <strong id="statTotal" class="mono">--</strong></div>
+        <div>Max NATR: <strong id="statMax" class="mono">--%</strong></div>
+        <div>Avg NATR: <strong id="statAvg" class="mono">--%</strong></div>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:60px;">#</th>
+                    <th>Тикер</th>
+                    <th style="width:140px;">NATR (%)</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+        
+        <div id="skeleton" style="display:none;"></div>
+        
+        <div class="empty-state" id="emptyState" style="display:none;">
+            <svg style="width:48px;height:48px;margin:0 auto;opacity:0.4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <p>Сканирование...</p>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast">
+    <svg style="width:18px;height:18px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+    <span id="toastText">Скопировано!</span>
+</div>
+
+<textarea id="copyArea" style="position:fixed;left:-9999px;top:-9999px;opacity:0;"></textarea>
+
+<script>
+const API = 'https://fapi.binance.com';
+let mode = '5_14';
+let allResults = [];
+let isScanning = false;
+
+const REFRESH_INTERVAL = 60;
+let refreshCountdown = REFRESH_INTERVAL;
+let refreshTimerId = null;
+
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast(text + ' скопирован')).catch(() => fallbackCopy(text));
+    } else {
+        fallbackCopy(text);
+    }
+}
+
+function fallbackCopy(text) {
+    const ta = document.getElementById('copyArea');
+    ta.value = text;
+    ta.focus();
+    ta.select();
+    try { if (document.execCommand('copy')) showToast(text + ' скопирован'); else showToast('Ошибка'); }
+    catch(e) { showToast('Ошибка'); }
+    ta.value = '';
+}
+
+function handleTickerClick(symbol, cellElement) {
+    copyToClipboard(symbol);
+    cellElement.classList.add('copied');
+    setTimeout(() => cellElement.classList.remove('copied'), 800);
+}
+
+function showToast(text) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastText').textContent = text;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+function startAutoRefresh() {
+    refreshCountdown = REFRESH_INTERVAL;
+    updateTimerDisplay();
+    if (refreshTimerId) clearInterval(refreshTimerId);
+    refreshTimerId = setInterval(() => {
+        refreshCountdown--;
+        updateTimerDisplay();
+        if (refreshCountdown <= 0) {
+            if (!isScanning && allResults.length > 0) startScan(true);
+            refreshCountdown = REFRESH_INTERVAL;
+        }
+    }, 1000);
+    document.getElementById('autoRefresh').classList.add('active');
+}
+
+function updateTimerDisplay() {
+    const el = document.getElementById('refreshTimer');
+    el.textContent = refreshCountdown;
+    el.style.color = refreshCountdown <= 5 ? 'var(--red)' : refreshCountdown <= 15 ? 'var(--accent)' : '';
+}
+
+async function getAllPairs() {
+    try {
+        const res = await fetch(`${API}/fapi/v1/exchangeInfo`);
+        const data = await res.json();
+        return data.symbols.filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING').map(s => s.symbol);
+    } catch(e) { return []; }
+}
+
+function calcATR(klines, period) {
+    if (!klines || klines.length < period + 1) return null;
+    let sum = 0;
+    for (let i = klines.length - period; i < klines.length; i++) {
+        const h = parseFloat(klines[i][2]), l = parseFloat(klines[i][3]), pc = parseFloat(klines[i-1][4]);
+        sum += Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+    }
+    return sum / period;
+}
+
+function calcNATR(klines, period) {
+    const atr = calcATR(klines, period);
+    if (!atr || !klines.length) return null;
+    const price = parseFloat(klines[klines.length-1][4]);
+    return price ? (atr / price) * 100 : null;
+}
+
+async function getKlines(symbol, interval, limit) {
+    try {
+        const r = await fetch(`${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        return r.ok ? await r.json() : null;
+    } catch { return null; }
+}
+
+function setStatus(text, active = false) {
+    document.getElementById('statusText').textContent = text;
+    document.getElementById('statusBadge').classList.toggle('active', active);
+}
+
+function showSkeleton(count = 10) {
+    const el = document.getElementById('skeleton');
+    el.style.display = 'block';
+    el.innerHTML = Array(count).fill(0).map(() => `
+        <div class="skel-row">
+            <div class="skel" style="width:32px;height:32px;border-radius:8px;"></div>
+            <div class="skel" style="width:100px;height:18px;"></div>
+            <div class="skel" style="width:80px;height:28px;margin-left:auto;"></div>
+        </div>
+    `).join('');
+    document.getElementById('tableBody').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+}
+
+function hideSkeleton() { document.getElementById('skeleton').style.display = 'none'; }
+
+function renderTable(data) {
+    const body = document.getElementById('tableBody');
+    const top10 = data.slice(0, 10);
+    
+    if (!top10.length) {
+        body.innerHTML = '';
+        document.getElementById('emptyState').style.display = 'block';
+        return;
+    }
+    
+    document.getElementById('emptyState').style.display = 'none';
+    const maxVal = top10[0].natr;
+    
+    body.innerHTML = top10.map((item, i) => {
+        const rClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-n';
+        const nClass = item.natr > maxVal * 0.7 ? 'natr-hi' : item.natr > maxVal * 0.4 ? 'natr-mid' : 'natr-lo';
+        const borderClass = i === 9 ? 'border-after' : '';
+        return `<tr class="${borderClass}">
+            <td><span class="rank ${rClass} mono">${i + 1}</span></td>
+            <td class="ticker-cell" data-symbol="${item.symbol}">
+                <div class="ticker-name">${item.symbol}</div>
+                <div class="ticker-sub">нажми чтобы скопировать</div>
+                <svg class="copy-icon" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </td>
+            <td><span class="natr mono ${nClass}">${item.natr.toFixed(3)}<small style="font-size:0.65em;color:var(--muted)">%</small></span></td>
+        </tr>`;
+    }).join('');
+    
+    document.querySelectorAll('.ticker-cell').forEach(cell => {
+        cell.addEventListener('click', function() {
+            handleTickerClick(this.getAttribute('data-symbol'), this);
+        });
+    });
+    
+    document.getElementById('statsBar').style.display = 'flex';
+    document.getElementById('statTotal').textContent = data.length;
+    document.getElementById('statMax').textContent = maxVal.toFixed(3) + '%';
+    const avg = data.reduce((s, d) => s + d.natr, 0) / data.length;
+    document.getElementById('statAvg').textContent = avg.toFixed(3) + '%';
+}
+
+function switchMode(m) {
+    mode = m;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+    if (allResults.length) renderTable([...allResults].sort((a, b) => b.natr - a.natr));
+}
+
+async function startScan(silent = false) {
+    if (isScanning) return;
+    isScanning = true;
+    document.getElementById('scanBtn').classList.add('loading');
+    
+    showSkeleton();
+    document.getElementById('emptyState').style.display = 'none';
+    setStatus('Загрузка списка...', true);
+    
+    const pairs = await getAllPairs();
+    if (!pairs.length) { setStatus('Ошибка API'); hideSkeleton(); document.getElementById('scanBtn').classList.remove('loading'); isScanning = false; return; }
+    
+    setStatus(`Сканирование ${pairs.length}...`, true);
+    
+    const interval = mode === '5_14' ? '5m' : '1m';
+    const atrPeriod = mode === '5_14' ? 14 : 30;
+    const results = [];
+    
+    for (let i = 0; i < pairs.length; i += 10) {
+        const batch = pairs.slice(i, i + 10);
+        const batchResults = await Promise.all(batch.map(async (sym) => {
+            const klines = await getKlines(sym, interval, atrPeriod + 5);
+            if (!klines) return null;
+            const natr = calcNATR(klines, atrPeriod);
+            return natr != null && natr !== 0 ? { symbol: sym.replace('USDT',''), natr } : null;
+        }));
+        results.push(...batchResults.filter(Boolean));
+        setStatus(`${Math.min(i+10,pairs.length)}/${pairs.length}`, true);
+        if (i + 10 < pairs.length) await new Promise(r => setTimeout(r, 80));
+    }
+    
+    allResults = results.sort((a, b) => b.natr - a.natr);
+    hideSkeleton();
+    renderTable(allResults);
+    setStatus(`Готово: ${results.length}`, true);
+    document.getElementById('scanBtn').classList.remove('loading');
+    isScanning = false;
+    startAutoRefresh();
+}
+
+// Автозапуск при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    updateTimerDisplay();
+    // Запускаем сканер сразу
+    startScan();
+});
+</script>
+
+</body>
+</html>

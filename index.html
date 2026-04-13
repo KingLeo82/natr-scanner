@@ -103,11 +103,24 @@
             height: 8px;
             border-radius: 50%;
             background: var(--muted);
+            transition: all 0.3s;
         }
         
         .status.active .status-dot {
             background: var(--green);
             box-shadow: 0 0 8px var(--green);
+        }
+        
+        /* Индикатор фонового обновления */
+        .status.updating .status-dot {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
         }
 
         .auto-refresh {
@@ -120,11 +133,34 @@
             font-size: 12px;
             color: var(--muted);
             border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
         }
         
         .auto-refresh.active {
             border-color: rgba(16, 203, 129, 0.3);
             color: var(--green);
+        }
+        
+        /* Progress bar для фонового обновления */
+        .auto-refresh::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 2px;
+            background: var(--green);
+            width: 0%;
+            transition: width 0.3s ease-out;
+        }
+        
+        .auto-refresh.updating::after {
+            animation: progress 60s linear forwards;
+        }
+        
+        @keyframes progress {
+            from { width: 100%; }
+            to { width: 0%; }
         }
         
         .refresh-timer {
@@ -179,12 +215,33 @@
         .stats-bar span { color: var(--muted); }
         .stats-bar strong { color: var(--fg); }
         .stats-bar .mono { color: var(--accent); }
+        
+        /* Timestamp последнего обновления */
+        .last-update {
+            font-size: 11px;
+            color: var(--muted);
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .last-update.updating {
+            color: var(--accent);
+        }
+        
+        .last-update svg {
+            animation: spin 2s linear infinite;
+        }
 
         .table-wrap {
             background: var(--bg-card);
             border-radius: 16px;
             overflow: hidden;
             border: 1px solid var(--border);
+            position: relative;
         }
         
         table { width: 100%; border-collapse: collapse; }
@@ -203,7 +260,7 @@
         thead th:last-child { text-align: right; }
 
         tbody tr {
-            transition: background 0.15s;
+            transition: all 0.25s ease;
             border-bottom: 1px solid var(--border);
         }
         
@@ -213,6 +270,22 @@
 
         tbody tr.border-after {
             border-bottom: 2px solid rgba(255,255,255,0.12) !important;
+        }
+        
+        /* Анимация обновления строки */
+        tbody tr.row-updated {
+            animation: rowFlash 0.5s ease-out;
+        }
+        
+        @keyframes rowFlash {
+            0% { 
+                background: rgba(240, 185, 11, 0.15);
+                transform: translateX(-2px);
+            }
+            100% { 
+                background: transparent;
+                transform: translateX(0);
+            }
         }
 
         tbody td {
@@ -242,6 +315,7 @@
             cursor: pointer;
             user-select: none;
             -webkit-user-select: none;
+            position: relative;
         }
         
         .ticker-name {
@@ -295,11 +369,22 @@
             font-size: 1.75rem;
             font-weight: 700;
             letter-spacing: -0.03em;
+            transition: color 0.3s;
         }
         
         .natr-hi { color: var(--red); }
         .natr-mid { color: var(--accent); }
         .natr-lo { color: var(--muted); }
+        
+        /* NATR value change indicator */
+        .natr-changed {
+            animation: natrPulse 0.4s ease-out;
+        }
+        
+        @keyframes natrPulse {
+            0% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
 
         .skel-row {
             display: flex;
@@ -353,6 +438,29 @@
             transform: translateX(-50%) translateY(0);
             opacity: 1;
         }
+        
+        /* Background update indicator overlay */
+        .bg-update-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 10;
+        }
+        
+        .table-wrap.updating .bg-update-overlay {
+            opacity: 1;
+            animation: slideRight 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes slideRight {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
 
         @media (max-width: 600px) {
             .container { padding: 12px; }
@@ -361,6 +469,7 @@
             .ticker-name { font-size: 14px; }
             td, th { padding: 12px 14px; }
             .controls { flex-wrap: wrap; justify-content: center; }
+            .last-update { display: none; }
         }
     </style>
 </head>
@@ -395,9 +504,14 @@
         <div>Всего контрактов: <strong id="statTotal" class="mono">--</strong></div>
         <div>Max NATR: <strong id="statMax" class="mono">--%</strong></div>
         <div>Avg NATR: <strong id="statAvg" class="mono">--%</strong></div>
+        <div class="last-update" id="lastUpdate" style="display:none;">
+            <svg style="width:12px;height:12px;display:none;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span id="updateTime">--:--:--</span>
+        </div>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap" id="tableWrap">
+        <div class="bg-update-overlay"></div>
         <table>
             <thead>
                 <tr>
@@ -431,10 +545,28 @@ const API = 'https://fapi.binance.com';
 let mode = '5_14';
 let allResults = [];
 let isScanning = false;
+let isBackgroundUpdating = false;
+
+// Конфигурация
+const SCAN_CONFIG = {
+    batchSize: 25,
+    maxRetries: 2,
+    retryDelay: 300,
+    batchDelay: 20,
+    cacheResults: true,
+    abortOnNewScan: true
+};
 
 const REFRESH_INTERVAL = 60;
 let refreshCountdown = REFRESH_INTERVAL;
 let refreshTimerId = null;
+
+// AbortController
+let currentAbortController = null;
+
+// Кэш
+const resultsCache = new Map();
+const CACHE_TTL = 55000;
 
 function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -475,7 +607,10 @@ function startAutoRefresh() {
         refreshCountdown--;
         updateTimerDisplay();
         if (refreshCountdown <= 0) {
-            if (!isScanning && allResults.length > 0) startScan(true);
+            // Запускаем фоновое обновление если не сканируем вручную
+            if (!isScanning && allResults.length > 0) {
+                startBackgroundUpdate();
+            }
             refreshCountdown = REFRESH_INTERVAL;
         }
     }, 1000);
@@ -513,16 +648,110 @@ function calcNATR(klines, period) {
     return price ? (atr / price) * 100 : null;
 }
 
-async function getKlines(symbol, interval, limit) {
-    try {
-        const r = await fetch(`${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-        return r.ok ? await r.json() : null;
-    } catch { return null; }
+async function getKlinesWithRetry(symbol, interval, limit, retries = SCAN_CONFIG.maxRetries) {
+    const cacheKey = `${symbol}_${interval}_${limit}`;
+    
+    if (SCAN_CONFIG.cacheResults && resultsCache.has(cacheKey)) {
+        const cached = resultsCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < CACHE_TTL) {
+            return cached.data;
+        }
+    }
+    
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        if (currentAbortController?.signal.aborted) return null;
+        
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const r = await fetch(
+                `${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+                { signal: controller.signal }
+            );
+            
+            clearTimeout(timeoutId);
+            
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            
+            const data = await r.json();
+            
+            if (SCAN_CONFIG.cacheResults) {
+                resultsCache.set(cacheKey, { data, timestamp: Date.now() });
+            }
+            
+            return data;
+            
+        } catch (error) {
+            if (attempt < retries && error.name !== 'AbortError') {
+                await new Promise(r => setTimeout(r, SCAN_CONFIG.retryDelay * (attempt + 1)));
+            } else if (error.name === 'AbortError') {
+                return null;
+            }
+        }
+    }
+    return null;
 }
 
-function setStatus(text, active = false) {
+async function processBatchWithConcurrency(pairs, interval, limit, onProgress) {
+    const results = [];
+    const total = pairs.length;
+    let processed = 0;
+    
+    for (let i = 0; i < total; i += SCAN_CONFIG.batchSize) {
+        if (currentAbortController?.signal.aborted) break;
+        
+        const batch = pairs.slice(i, Math.min(i + SCAN_CONFIG.batchSize, total));
+        
+        const batchPromises = batch.map(async (sym) => {
+            const klines = await getKlinesWithRetry(sym, interval, limit);
+            if (!klines) return null;
+            
+            const atrPeriod = mode === '5_14' ? 14 : 30;
+            const natr = calcNATR(klines, atrPeriod);
+            return natr != null && natr !== 0 ? { symbol: sym.replace('USDT',''), natr } : null;
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults.filter(Boolean));
+        
+        processed += batch.length;
+        if (onProgress) onProgress(processed, total);
+        
+        if (i + SCAN_CONFIG.batchSize < total && SCAN_CONFIG.batchDelay > 0) {
+            await new Promise(r => setTimeout(r, SCAN_CONFIG.batchDelay));
+        }
+    }
+    
+    return results;
+}
+
+// === УПРАВЛЕНИЕ СОСТОЯНИЯМИ ИНДИКАТОРОВ ===
+function setStatus(text, active = false, updating = false) {
+    const badge = document.getElementById('statusBadge');
     document.getElementById('statusText').textContent = text;
-    document.getElementById('statusBadge').classList.toggle('active', active);
+    badge.classList.toggle('active', active);
+    badge.classList.toggle('updating', updating);
+}
+
+function setTableUpdating(updating) {
+    document.getElementById('tableWrap').classList.toggle('updating', updating);
+    document.getElementById('autoRefresh').classList.toggle('updating', updating);
+    
+    const lastUpdate = document.getElementById('lastUpdate');
+    lastUpdate.classList.toggle('updating', updating);
+    if (updating) {
+        lastUpdate.querySelector('svg').style.display = 'inline-block';
+    } else {
+        lastUpdate.querySelector('svg').style.display = 'none';
+    }
+}
+
+function updateLastUpdateTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('updateTime').textContent = `Обновлено: ${timeStr}`;
+    document.getElementById('lastUpdate').style.display = 'flex';
 }
 
 function showSkeleton(count = 10) {
@@ -541,7 +770,8 @@ function showSkeleton(count = 10) {
 
 function hideSkeleton() { document.getElementById('skeleton').style.display = 'none'; }
 
-function renderTable(data) {
+// === ОПТИМИЗИРОВАННЫЙ RENDER С АНИМАЦИЕЙ ИЗМЕНЕНИЙ ===
+function renderTable(data, animateChanges = false) {
     const body = document.getElementById('tableBody');
     const top10 = data.slice(0, 10);
     
@@ -554,18 +784,27 @@ function renderTable(data) {
     document.getElementById('emptyState').style.display = 'none';
     const maxVal = top10[0].natr;
     
+    // Если нужно анимировать изменения, сравниваем с предыдущими данными
+    const prevData = animateChanges ? getCurrentDisplayedData() : null;
+    
     body.innerHTML = top10.map((item, i) => {
         const rClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-n';
         const nClass = item.natr > maxVal * 0.7 ? 'natr-hi' : item.natr > maxVal * 0.4 ? 'natr-mid' : 'natr-lo';
         const borderClass = i === 9 ? 'border-after' : '';
-        return `<tr class="${borderClass}">
+        
+        // Проверяем изменилось ли значение
+        const changed = prevData && prevData[i] && prevData[i].natr !== item.natr;
+        const rowAnimClass = changed ? 'row-updated' : '';
+        const natrAnimClass = changed ? 'natr-changed' : '';
+        
+        return `<tr class="${borderClass} ${rowAnimClass}">
             <td><span class="rank ${rClass} mono">${i + 1}</span></td>
             <td class="ticker-cell" data-symbol="${item.symbol}">
                 <div class="ticker-name">${item.symbol}</div>
                 <div class="ticker-sub">нажми чтобы скопировать</div>
                 <svg class="copy-icon" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             </td>
-            <td><span class="natr mono ${nClass}">${item.natr.toFixed(3)}<small style="font-size:0.65em;color:var(--muted)">%</small></span></td>
+            <td><span class="natr mono ${nClass} ${natrAnimClass}">${item.natr.toFixed(3)}<small style="font-size:0.65em;color:var(--muted)">%</small></span></td>
         </tr>`;
     }).join('');
     
@@ -580,6 +819,19 @@ function renderTable(data) {
     document.getElementById('statMax').textContent = maxVal.toFixed(3) + '%';
     const avg = data.reduce((s, d) => s + d.natr, 0) / data.length;
     document.getElementById('statAvg').textContent = avg.toFixed(3) + '%';
+    
+    updateLastUpdateTime();
+}
+
+// Получаем текущие отображаемые данные для сравнения
+function getCurrentDisplayedData() {
+    const rows = document.querySelectorAll('#tableBody tr');
+    return Array.from(rows).map(row => {
+        const symbol = row.querySelector('.ticker-cell')?.getAttribute('data-symbol') || '';
+        const natrText = row.querySelector('.natr')?.textContent || '0';
+        const natr = parseFloat(natrText.replace('%', '').trim());
+        return { symbol, natr };
+    }).filter(d => d.symbol);
 }
 
 function switchMode(m) {
@@ -588,35 +840,120 @@ function switchMode(m) {
     if (allResults.length) renderTable([...allResults].sort((a, b) => b.natr - a.natr));
 }
 
-async function startScan(silent = false) {
+// === ФОНОВОЕ ОБНОВЛЕНИЕ ===
+async function startBackgroundUpdate() {
+    if (isScanning || isBackgroundUpdating) return;
+    
+    isBackgroundUpdating = true;
+    currentAbortController = new AbortController();
+    
+    // Включаем индикаторы фонового обновления
+    setTableUpdating(true);
+    setStatus(`Фоновое обновление...`, true, true);
+    
+    const pairs = await getAllPairs();
+    if (!pairs.length || currentAbortController.signal.aborted) { 
+        finishBackgroundUpdate(false);
+        return; 
+    }
+    
+    const interval = mode === '5_14' ? '5m' : '1m';
+    const limit = (mode === '5_14' ? 14 : 30) + 5;
+    
+    const results = await processBatchWithConcurrency(
+        pairs, 
+        interval, 
+        limit, 
+        (processed, total) => {
+            if (!currentAbortController.signal.aborted) {
+                setStatus(`${processed}/${total}`, true, true);
+            }
+        }
+    );
+    
+    if (currentAbortController.signal.aborted) {
+        finishBackgroundUpdate(false);
+        return;
+    }
+    
+    // Обновляем данные с анимацией изменений
+    allResults = results.sort((a, b) => b.natr - a.natr);
+    renderTable(allResults, true); // animateChanges = true
+    
+    finishBackgroundUpdate(true);
+}
+
+function finishBackgroundUpdate(success) {
+    isBackgroundUpdating = false;
+    currentAbortController = null;
+    
+    // Выключаем индикаторы
+    setTableUpdating(false);
+    
+    if (success) {
+        setStatus(`Готово: ${allResults.length}`, true);
+    } else {
+        if (allResults.length > 0) {
+            setStatus(`Готово: ${allResults.length}`, true);
+        } else {
+            setStatus('Отменено', false);
+        }
+    }
+}
+
+// === РУЧНОЕ СКАНИРОВАНИЕ (с skeleton) ===
+async function startScan() {
     if (isScanning) return;
+    
+    // Отмена фонового обновления если активно
+    if (isBackgroundUpdating && currentAbortController) {
+        currentAbortController.abort();
+        isBackgroundUpdating = false;
+        setTableUpdating(false);
+    }
+    
     isScanning = true;
+    currentAbortController = new AbortController();
+    
     document.getElementById('scanBtn').classList.add('loading');
     
+    // Показываем skeleton только при ручном сканировании
     showSkeleton();
     document.getElementById('emptyState').style.display = 'none';
     setStatus('Загрузка списка...', true);
     
     const pairs = await getAllPairs();
-    if (!pairs.length) { setStatus('Ошибка API'); hideSkeleton(); document.getElementById('scanBtn').classList.remove('loading'); isScanning = false; return; }
+    if (!pairs.length || currentAbortController.signal.aborted) { 
+        setStatus('Ошибка API'); 
+        hideSkeleton(); 
+        document.getElementById('scanBtn').classList.remove('loading'); 
+        isScanning = false; 
+        currentAbortController = null;
+        return; 
+    }
     
     setStatus(`Сканирование ${pairs.length}...`, true);
     
     const interval = mode === '5_14' ? '5m' : '1m';
-    const atrPeriod = mode === '5_14' ? 14 : 30;
-    const results = [];
+    const limit = (mode === '5_14' ? 14 : 30) + 5;
     
-    for (let i = 0; i < pairs.length; i += 10) {
-        const batch = pairs.slice(i, i + 10);
-        const batchResults = await Promise.all(batch.map(async (sym) => {
-            const klines = await getKlines(sym, interval, atrPeriod + 5);
-            if (!klines) return null;
-            const natr = calcNATR(klines, atrPeriod);
-            return natr != null && natr !== 0 ? { symbol: sym.replace('USDT',''), natr } : null;
-        }));
-        results.push(...batchResults.filter(Boolean));
-        setStatus(`${Math.min(i+10,pairs.length)}/${pairs.length}`, true);
-        if (i + 10 < pairs.length) await new Promise(r => setTimeout(r, 80));
+    const results = await processBatchWithConcurrency(
+        pairs, 
+        interval, 
+        limit, 
+        (processed, total) => {
+            if (!currentAbortController.signal.aborted) {
+                setStatus(`${processed}/${total}`, true);
+            }
+        }
+    );
+    
+    if (currentAbortController.signal.aborted) {
+        hideSkeleton();
+        document.getElementById('scanBtn').classList.remove('loading');
+        isScanning = false;
+        currentAbortController = null;
+        return;
     }
     
     allResults = results.sort((a, b) => b.natr - a.natr);
@@ -625,13 +962,13 @@ async function startScan(silent = false) {
     setStatus(`Готово: ${results.length}`, true);
     document.getElementById('scanBtn').classList.remove('loading');
     isScanning = false;
+    currentAbortController = null;
     startAutoRefresh();
 }
 
 // Автозапуск при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     updateTimerDisplay();
-    // Запускаем сканер сразу
     startScan();
 });
 </script>
